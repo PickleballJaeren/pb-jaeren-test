@@ -87,6 +87,9 @@ function _oppdaterSpillerTellere(min, er6Format) {
 // ════════════════════════════════════════════════════════
 let _sisteDeltakereApen = false;
 let _sisteDeltakereCache = null; // { ids: Set, hentetMs }
+
+export function getSisteDeltakereApen()    { return _sisteDeltakereApen; }
+export function setSisteDeltakereCache(v)  { _sisteDeltakereCache = v; }
 const SISTE_DELTAKERE_TTL_MS = 5 * 60 * 1000; // 5 min cache
 
 async function toggleSisteDeltakere() {
