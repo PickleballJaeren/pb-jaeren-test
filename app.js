@@ -35,6 +35,9 @@ import {
   nullstillSisteDeltakereCache,
   visSpillere,
   lastSisteDeltakere,
+  toggleSisteDeltakere,
+  getSisteDeltakereApen,
+  setSisteDeltakereCache,
 } from './spillere.js';
 import {
   treningInit,
@@ -244,8 +247,7 @@ function lyttPaaSpillere() {
   _lyttPaaSpillere(aktivKlubbId, {
     onSpillere: () => {
       visSpillere();
-      if (!_sisteDeltakereApen) {
-        _sisteDeltakereApen = true;
+      if (!getSisteDeltakereApen()) {
         const panel = document.getElementById('siste-deltakere-panel');
         const pil   = document.getElementById('siste-deltakere-pil');
         if (panel) panel.style.display = 'block';
@@ -384,8 +386,8 @@ async function init() {
     naviger:                naviger,
     visSpillere:            visSpillere,
     toggleSisteDeltakere:   toggleSisteDeltakere,
-    getSisteDeltakereApen:  () => _sisteDeltakereApen,
-    setSisteDeltakereCache: (v) => { _sisteDeltakereCache = v; },
+    getSisteDeltakereApen:  getSisteDeltakereApen,
+    setSisteDeltakereCache: setSisteDeltakereCache,
   });
 
   // Koble ui.js til app-spesifikk logikk
