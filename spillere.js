@@ -515,8 +515,9 @@ window.utforSlettAlleSpillere = utforSlettAlleSpillere;
 // SLETT SPILLER (admin)
 // ════════════════════════════════════════════════════════
 let aktivSlettSpillerId = null;
+export function setAktivSlettSpillerId(id) { aktivSlettSpillerId = id; }
 
-function visSlettSpillerModal() {
+export function visSlettSpillerModal() {
   const navn = document.getElementById('global-profil-navn').textContent;
   const id   = aktivSlettSpillerId;
   if (!id) return;
@@ -531,7 +532,7 @@ function visSlettSpillerModal() {
 }
 window.visSlettSpillerModal = visSlettSpillerModal;
 
-async function utforSlettSpiller() {
+export async function utforSlettSpiller() {
   if (!db || !aktivSlettSpillerId) return;
   document.getElementById('modal-slett-spiller').style.display = 'none';
   const spillerId = aktivSlettSpillerId;
