@@ -897,6 +897,22 @@ function _hentTapereFraRunde(kamper, kampIder, plass, lagMap, ut) {
 }
 
 // ════════════════════════════════════════════════════════
+// OPPDATER TURNERINGSKONFIG (setup-fase)
+// ════════════════════════════════════════════════════════
+export async function oppdaterTurneringKonfig(turneringId, oppdatering) {
+  const t = await hentTurnering(turneringId);
+  if (t.status !== T_STATUS.SETUP) throw new Error('Kan kun endre konfig i oppsettfasen.');
+
+  const { navn, ...konfig } = oppdatering;
+  const nyKonfig = { ...t.konfig, ...konfig };
+
+  const felt = { konfig: nyKonfig };
+  if (navn) felt.navn = navn;
+
+  await updateDoc(doc(db, TS.TURNERINGER, turneringId), felt);
+}
+
+// ════════════════════════════════════════════════════════
 // AVSLUTT TURNERING
 // ════════════════════════════════════════════════════════
 export async function avsluttTurnering(turneringId) {
