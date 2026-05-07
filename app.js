@@ -18,7 +18,7 @@ import {
   visMelding, visFBFeil, escHtml,
   lasUI, frigiUI, startFailSafe, stoppFailSafe,
   registrerNavigertHandler, registrerBeforeunload,
-  registrerProfilCallbacks,
+  registrerProfilCallbacks, registrerHarAktivOkt,
 } from './ui.js';
 import {
   krevAdmin as _krevAdminBase, pinInput, bekreftPin, lukkPinModal,
@@ -52,7 +52,7 @@ import {
 } from './trening.js';
 import {
   banerInit,
-  setKampStatusCache, getKampStatusCache,
+  kampStatusCache, setKampStatusCache, getKampStatusCache,
   oppdaterRundeUI, visBanerDebounced, oppdaterKampStatus, visBaner,
   apnePoenginput, navigerBane, oppdaterPoengNav,
 } from './baner.js';
@@ -62,6 +62,7 @@ import {
 } from './poeng.js';
 import {
   resultatInit,
+  beregnSpillerstatistikk, sorterRangering,
   visRundeResultat, beregnForflytninger,
   visSluttresultat,
 } from './resultat.js';
@@ -70,7 +71,6 @@ import {
   ledertavleInit,
   oppdaterGlobalLedertavle,
   visNullstillModal, utforNullstill,
-  nullstillSesongCache,
 } from './ledertavle.js';
 import { globalProfilInit } from './global-profil.js';
 import {
@@ -147,6 +147,7 @@ function byttKlubb(klubbId) {
   visMelding('Klubb valgt: ' + KLUBBER[klubbId].navn);
 }
 window.byttKlubb = byttKlubb;
+window._app = app;
 
 /** Lagrer hvilken spiller brukeren er — brukes i utfordrermodusen. */
 window.settAktivSpiller = function(spillerId) {
@@ -162,11 +163,13 @@ function _navigerTilskuer(adminSkjerm) {
   if (getErAdmin()) return; // admin navigerer selv
   if (!app._oektAktiv) return; // ingen aktiv økt
 
+  // Ikke avbryt pågående poengregistrering — tilskueren fullfører først
+  const aktivSkjerm = document.querySelector('.screen.active');
+  if (aktivSkjerm?.id === 'skjerm-poeng') return;
+
   if (adminSkjerm === 'resultat') {
-    // Vis resultatskjermen for deltakere
     visRundeResultat();
   } else {
-    // Vis baneoversikten for deltakere
     naviger('tilskuer');
     oppdaterTilskuerInnhold();
   }
@@ -306,6 +309,17 @@ function visHjemStatus() {
 }
 window.visHjemStatus = visHjemStatus;
 
+/**
+ * Sett logo-bilde på hjemskjermen.
+ * Kall denne med filsti etter at logoen er tilgjengelig.
+ * Eksempel: settHjemLogo('/logo.png')
+ */
+function settHjemLogo(src) {
+  const img = document.getElementById('hjem-logo-img');
+  if (img) img.src = src;
+}
+window.settHjemLogo = settHjemLogo;
+
 window.visDelAppModal = function() {
   krevAdminMedDemo('Del appen', 'Kun administrator kan dele applenken.', () => {
     const url = location.href.replace(/[?#].*$/, '');
@@ -386,10 +400,11 @@ function _lyttereCallbacks() {
       app._oektAktiv = false;
       app.treningId  = null;
       stoppLyttere();
-      nullstillSesongCache(); // ratings er oppdatert — tving ny henting av sesongkåring
       naviger('slutt');
       visHjemStatus();
     },
+    onVisResultater:     ()  => { app._oektAktiv = false; naviger('slutt'); },
+    onVisRundeResultat:  async () => { await visRundeResultat(); },
     onAdminSkjermEndret: (skjerm) => _navigerTilskuer(skjerm),
     onKamper:          (k) => oppdaterKampStatus(k),
     onKampStatusReset: ()  => setKampStatusCache({}),
@@ -427,7 +442,6 @@ async function init() {
   utfordrerInit({
     getAktivKlubbId:   () => aktivKlubbId,
     getAktivSpillerId: () => sessionStorage.getItem('aktivSpillerId'),
-    getSpillere:       () => app.spillere ?? [],
   });
 
   // Registrer profil-callbacks i ui.js (erstatter window-globals)
@@ -490,7 +504,6 @@ async function init() {
     toggleSisteDeltakere:   toggleSisteDeltakere,
     getSisteDeltakereApen:  getSisteDeltakereApen,
     setSisteDeltakereCache: setSisteDeltakereCache,
-    nullstillSesongCache:   nullstillSesongCache,
   });
 
   // Koble ui.js til app-spesifikk logikk
@@ -510,6 +523,7 @@ async function init() {
     if (skjerm === 'turnering-resultat') { const t = app.aktivTurnering; if (t) visTurneringResultat(t);}
   });
   registrerBeforeunload(() => !!app.treningId);
+  registrerHarAktivOkt(() => !!app.treningId);
 
   // Eksponer getErAdmin globalt for inline onclick-attributter
   window.getErAdmin = getErAdmin;
