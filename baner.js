@@ -1568,19 +1568,38 @@ window._lagreRedigerBaner = async function() {
   const lagreBtn = document.querySelector('#modal-rediger-baner .knapp-gronn');
   if (lagreBtn) { lagreBtn.disabled = true; lagreBtn.textContent = 'Lagrer…'; }
 
+  // Sjekk om spillersammensetningen faktisk er endret — om ikke, trenger vi
+  // ikke slette og skrive kamp-dokumentene på nytt. Dette bevarer registrerte poeng
+  // når admin kun justerer poengscoren via poeng-velgeren.
+  const spillereSomFor = JSON.stringify(
+    (app.baneOversikt ?? []).map(b => ({
+      baneNr: b.baneNr,
+      ids: (b.spillere ?? []).map(s => s.id).sort(),
+    }))
+  );
+  const spillerNaa = JSON.stringify(
+    (_redigerBaner ?? []).map(b => ({
+      baneNr: b.baneNr,
+      ids: (b.spillere ?? []).map(s => s.id).sort(),
+    }))
+  );
+  const spillereEndret = spillereSomFor !== spillerNaa;
+
   try {
-    // Slett eksisterende kamper for denne runden
-    const eksisterendeSnap = await getDocs(query(
-      collection(db, SAM.KAMPER),
-      where('treningId', '==', app.treningId),
-      where('rundeNr',   '==', app.runde),
-    ));
-
     const batch = writeBatch(db);
-    eksisterendeSnap.docs.forEach(d => batch.delete(d.ref));
 
-    // Skriv nye kamper basert på redigert banefordeling
-    _redigerBaner.forEach(bane => {
+    if (spillereEndret) {
+      // Spillersammensetning er endret — slett gamle kamper og skriv nye
+      const eksisterendeSnap = await getDocs(query(
+        collection(db, SAM.KAMPER),
+        where('treningId', '==', app.treningId),
+        where('rundeNr',   '==', app.runde),
+      ));
+      eksisterendeSnap.docs.forEach(d => batch.delete(d.ref));
+    }
+
+    // Skriv nye kamper kun hvis spillersammensetningen er endret
+    if (spillereEndret) _redigerBaner.forEach(bane => {
       const n = bane.spillere?.length ?? 0;
       const erSingel  = bane.erSingel === true || n === 2;
       const erDobbel6 = app.er6SpillerFormat && bane.erDobbel === true;
@@ -1620,7 +1639,7 @@ window._lagreRedigerBaner = async function() {
           batch.set(doc(collection(db, SAM.KAMPER)), dokData);
         });
       }
-    });
+    }); // slutt if (spillereEndret) forEach
 
     // Oppdater maksPoeng basert på admin-valgt poengverdi og antall spillere per bane.
     // Hvis det finnes både 4- og 5-spillerbaner: behold 3/5-justeringen for 5-spillerbaner.
