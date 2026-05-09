@@ -17,10 +17,10 @@ import {
   hentTurnering,
   registrerPuljeresultat,
   registrerWalkover,
+  flyttLag,
   beregnPuljetabell,
   kvalifiserTilSluttspill,
   startSluttspill,
-  nullstillSluttspill,
   registrerSluttspillResultat,
   oppdaterKampformat,
   nullstillNedstrømsKamper,
@@ -67,7 +67,7 @@ export async function visPulje(turnering) {
     return `
       <div class="seksjon-etikett">${escHtml(p.navn)}</div>
       <div class="kort"><div class="kort-innhold" style="padding:0">
-        ${lagTabellHTML(tabell, lagMap)}
+        ${lagTabellHTML(tabell, lagMap, p.id)}
       </div></div>
       <div class="seksjon-etikett" style="margin-top:10px">Kamper — ${escHtml(p.navn)}</div>
       <div class="kort"><div class="kort-innhold" style="padding:0">
@@ -102,7 +102,7 @@ function _grupperKamperPerRunde(kamper) {
   return Object.values(rundeMap).sort((a, b) => a.runde - b.runde);
 }
 
-function lagTabellHTML(tabell, lagMap) {
+function lagTabellHTML(tabell, lagMap, puljeId = null) {
   if (!tabell?.length) return '<div class="tom-tilstand-liten">Ingen lag i puljen.</div>';
 
   const harInnbyrdes = tabell.some(r => r.tiebreakType === 'innbyrdes');
@@ -134,6 +134,7 @@ function lagTabellHTML(tabell, lagMap) {
         <th class="th-center">S</th>
         <th class="th-center">T</th>
         <th class="th-center">+/-</th>
+        ${puljeId ? '<th></th>' : ''}
       </tr></thead>
       <tbody>
         ${tabell.map((r, i) => {
@@ -148,6 +149,7 @@ function lagTabellHTML(tabell, lagMap) {
             <td class="pulje-td-seire td-center">${r.seire}</td>
             <td class="td-center" style="color:var(--red2)">${r.tap}</td>
             <td class="td-center" style="color:${r.pd >= 0 ? 'var(--green2)' : 'var(--red2)'}">${r.pd > 0 ? '+' : ''}${r.pd}</td>
+            <td class="td-center"><button class="t-rediger-knapp" title="Flytt lag til annen pulje" onclick="apneFlyttLagModal('${escHtml(r.lagId)}','${escHtml(puljeId)}')">↕</button></td>
           </tr>`;
         }).join('')}
       </tbody>
@@ -188,13 +190,15 @@ function kampRadHTML(kamp, puljeId, lagMap, format) {
         </div>
         ${gameDetaljer}
       </div>
-      ${kamp.ferdig
-        ? `<div class="poeng-kolonne"><span>${kamp.lag1Poeng}</span><span>${kamp.lag2Poeng}</span></div>`
-        : `<div style="display:flex;flex-direction:column;gap:6px;align-items:flex-end">
-             <button class="t-rediger-knapp" onclick="apneResultatModal('${escHtml(puljeId)}','${escHtml(kamp.id)}','${escHtml(kamp.lag1Id)}','${escHtml(kamp.lag2Id)}')">✏️</button>
-             <button class="knapp knapp-omriss knapp-liten" onclick="apneResultatModal('${escHtml(puljeId)}','${escHtml(kamp.id)}','${escHtml(kamp.lag1Id)}','${escHtml(kamp.lag2Id)}')">Registrer</button>
-           </div>`
-      }
+      <div style="display:flex;flex-direction:column;gap:6px;align-items:flex-end">
+        ${kamp.ferdig
+          ? `<div class="poeng-kolonne" style="margin-bottom:4px"><span>${kamp.lag1Poeng}</span><span>${kamp.lag2Poeng}</span></div>`
+          : ''
+        }
+        <button class="t-rediger-knapp" title="${kamp.ferdig ? 'Rediger score' : 'Registrer score'}"
+          onclick="apneResultatModal('${escHtml(puljeId)}','${escHtml(kamp.id)}','${escHtml(kamp.lag1Id)}','${escHtml(kamp.lag2Id)}')">✏️</button>
+        ${!kamp.ferdig ? `<button class="knapp knapp-omriss knapp-liten" onclick="apneResultatModal('${escHtml(puljeId)}','${escHtml(kamp.id)}','${escHtml(kamp.lag1Id)}','${escHtml(kamp.lag2Id)}')">Registrer</button>` : ''}
+      </div>
     </div>`;
 }
 
@@ -267,6 +271,17 @@ window.apneResultatModal = function(puljeEllerNivaa, kampId, lag1Id, lag2Id, erS
 
   _tMaxPoeng = _modalFormat.max_points ?? 15;
 
+  // Hent eksisterende score for forhåndsutfylling
+  let eksisterendeL1 = null, eksisterendeL2 = null;
+  if (erSluttspill) {
+    const kamp = t?.sluttspill?.[puljeEllerNivaa]?.kamper?.find(k => k.id === kampId);
+    if (kamp?.ferdig) { eksisterendeL1 = kamp.lag1Poeng; eksisterendeL2 = kamp.lag2Poeng; }
+  } else {
+    const pulje = t?.puljer?.find(p => p.id === puljeEllerNivaa);
+    const kamp  = pulje?.kamper?.find(k => k.id === kampId);
+    if (kamp?.ferdig) { eksisterendeL1 = kamp.lag1Poeng; eksisterendeL2 = kamp.lag2Poeng; }
+  }
+
   // Nullstill game-state
   _games     = [null, null, null];
   _aktivGame = 0;
@@ -293,13 +308,23 @@ window.apneResultatModal = function(puljeEllerNivaa, kampId, lag1Id, lag2Id, erS
     document.head.appendChild(s);
   }
 
-  // Nullstill poeng-boksene
+  // Fyll inn poeng-boksene (eksisterende eller blank)
+  const startVerdier = { l1: eksisterendeL1, l2: eksisterendeL2 };
   ['l1', 'l2'].forEach(felt => {
     const boks = document.getElementById(`t-pvb-${felt}`);
-    if (boks) { boks.textContent = '—'; boks.classList.remove('aktiv'); }
+    const val  = startVerdier[felt];
+    if (boks) {
+      boks.textContent = val != null ? String(val) : '—';
+      boks.classList.remove('aktiv');
+      boks.dataset.verdi = val != null ? String(val) : '';
+    }
     const picker = document.getElementById(`t-pp-${felt}`);
     if (picker) { picker.style.display = 'none'; }
   });
+  // Forhåndsutfyll _games for single game
+  if (eksisterendeL1 != null && eksisterendeL2 != null && _modalFormat?.type !== 'best_of_3') {
+    _games[0] = { l1: eksisterendeL1, l2: eksisterendeL2 };
+  }
 
   document.getElementById('modal-resultat').style.display = 'flex';
   _tOppdaterModalUI();
@@ -601,9 +626,6 @@ export async function visBracket(turnering) {
 
   const avsluttKnapp = document.getElementById('avslutt-turnering-knapp');
   if (avsluttKnapp) avsluttKnapp.style.display = erAltFerdig(t) ? 'block' : 'none';
-
-  const nullstillKnapp = document.getElementById('nullstill-sluttspill-knapp');
-  if (nullstillKnapp) nullstillKnapp.style.display = erAltFerdig(t) ? 'none' : 'block';
 }
 
 function bracketNivaaHTML(tittel, farge, kamper, lagMap, nivaa) {
@@ -675,6 +697,71 @@ function bracketKampHTML(kamp, lagMap, nivaa) {
            <button class="knapp-tekst bracket-rediger-knapp" onclick="redigerSluttspillKamp('${nivaa}','${escHtml(kamp.id)}')">Rediger</button>
          </div>` : ''}`;
 }
+
+
+// ════════════════════════════════════════════════════════
+// FLYTT LAG MELLOM PULJER
+// ════════════════════════════════════════════════════════
+let _flyttLagId   = null;
+let _flyttFraPulje = null;
+
+window.apneFlyttLagModal = function(lagId, fraPuljeId) {
+  krevAdminTurnering('Flytt lag', 'PIN kreves for å flytte lag mellom puljer.', () => {
+    _flyttLagId    = lagId;
+    _flyttFraPulje = fraPuljeId;
+    const t      = app.aktivTurnering;
+    const lagMap = Object.fromEntries((t?.lag ?? []).map(l => [l.id, l]));
+    const lagNavn = lagMap[lagId]?.navn ?? lagId;
+
+    // Bygg modal dynamisk
+    let modal = document.getElementById('modal-flytt-lag');
+    if (!modal) {
+      modal = document.createElement('div');
+      modal.id = 'modal-flytt-lag';
+      modal.className = 'modal-bakgrunn';
+      modal.style.display = 'none';
+      modal.onclick = e => { if (e.target === modal) lukkFlyttLagModal(); };
+      document.body.appendChild(modal);
+    }
+
+    const andrePuljer = (t?.puljer ?? []).filter(p => p.id !== fraPuljeId);
+    modal.innerHTML = `
+      <div class="modal">
+        <div class="modal-tittel">↕ Flytt lag</div>
+        <div class="modal-tekst" style="font-size:16px;margin-bottom:16px">
+          Flytt <strong>${escHtml(lagNavn)}</strong> til:
+        </div>
+        <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:20px">
+          ${andrePuljer.map(p => `
+            <button class="knapp knapp-omriss" style="text-align:left;font-size:16px"
+              onclick="bekreftFlyttLag('${escHtml(p.id)}','${escHtml(p.navn)}')">
+              ${escHtml(p.navn)}
+            </button>`).join('')}
+        </div>
+        <button class="knapp knapp-omriss" style="width:100%" onclick="lukkFlyttLagModal()">Avbryt</button>
+      </div>`;
+    modal.style.display = 'flex';
+  });
+};
+
+window.lukkFlyttLagModal = function() {
+  const modal = document.getElementById('modal-flytt-lag');
+  if (modal) modal.style.display = 'none';
+};
+
+window.bekreftFlyttLag = async function(tilPuljeId, tilPuljeNavn) {
+  lukkFlyttLagModal();
+  const id = getAktivTurneringId();
+  try {
+    await flyttLag(id, _flyttLagId, tilPuljeId);
+    const oppdatert = await hentTurnering(id);
+    app.aktivTurnering = oppdatert;
+    visPulje(oppdatert);
+    visMelding(`Lag flyttet til ${tilPuljeNavn} — kamper regenerert.`);
+  } catch (e) {
+    visMelding(e?.message ?? 'Feil ved flytting av lag.', 'feil');
+  }
+};
 
 function erAltFerdig(t) {
   const sjekkBracket = (kamper) => kamper.length > 0 && kamper.every(k => k.ferdig);
@@ -761,21 +848,6 @@ window.tilSluttspillUI = function() {
       visBracket(oppdatert);
     } catch (e) {
       visMelding(e?.message ?? 'Feil ved start av sluttspill.', 'feil');
-    }
-  });
-};
-
-window.nullstillSluttspillUI = function() {
-  krevAdminTurnering('Nullstill sluttspill', 'PIN kreves for å nullstille sluttspillet og gå tilbake til puljespill.', async () => {
-    try {
-      const id = getAktivTurneringId();
-      await nullstillSluttspill(id);
-      const oppdatert = await hentTurnering(id);
-      app.aktivTurnering = oppdatert;
-      navigerTurnering('turnering-bracket', 'turnering-pulje');
-      visMelding('Sluttspill nullstilt — du kan nå starte sluttspill på nytt.');
-    } catch (e) {
-      visMelding(e?.message ?? 'Feil ved nullstilling av sluttspill.', 'feil');
     }
   });
 };

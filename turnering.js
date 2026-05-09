@@ -283,11 +283,58 @@ export async function oppdaterLagNavn(turneringId, lagId, spiller1, spiller2) {
 
 export async function flyttLag(turneringId, lagId, tilPuljeId) {
   const t = await hentTurnering(turneringId);
-  if (t.status !== T_STATUS.SETUP) throw new Error('Kan kun flytte lag i oppsettfasen.');
-  const nyePuljer = t.puljer
+  if (t.status !== T_STATUS.SETUP && t.status !== T_STATUS.GROUP_PLAY) {
+    throw new Error('Kan kun flytte lag før eller under puljespill.');
+  }
+
+  // Flytt laget mellom puljene
+  let nyePuljer = t.puljer
     .map(p => ({ ...p, lagIds: p.lagIds.filter(id => id !== lagId) }))
     .map(p => p.id === tilPuljeId ? { ...p, lagIds: [...p.lagIds, lagId] } : p);
+
+  // Under puljespill: regenerer kamper for berørte puljer
+  if (t.status === T_STATUS.GROUP_PLAY) {
+    nyePuljer = nyePuljer.map(p => {
+      const opprinnelig = t.puljer.find(op => op.id === p.id);
+      const endret = JSON.stringify(opprinnelig?.lagIds?.slice().sort()) !== JSON.stringify(p.lagIds.slice().sort());
+      if (!endret) return p;
+      // Regenerer kamper med round-robin for endret pulje
+      const { genererRoundRobin } = window._turneringLogikk ?? {};
+      const nyeKamper = genererRoundRobinLokal(p.lagIds);
+      return { ...p, kamper: nyeKamper };
+    });
+  }
+
   await updateDoc(doc(db, TS.TURNERINGER, turneringId), { puljer: nyePuljer });
+}
+
+/** Lokal round-robin generator (brukes ved lag-flytting i GROUP_PLAY) */
+function genererRoundRobinLokal(lagIds) {
+  const n = lagIds.length;
+  const kamper = [];
+  let kampNr = 1;
+  if (n < 2) return kamper;
+  const liste = [...lagIds];
+  if (n % 2 !== 0) liste.push('BYE');
+  const m = liste.length;
+  for (let runde = 0; runde < m - 1; runde++) {
+    for (let i = 0; i < m / 2; i++) {
+      const h = liste[i], b = liste[m - 1 - i];
+      if (h !== 'BYE' && b !== 'BYE') {
+        kamper.push({
+          id: `rr_${Date.now()}_${kampNr}`,
+          kampNr: kampNr++,
+          runde: runde + 1,
+          lag1Id: h, lag2Id: b,
+          lag1Poeng: null, lag2Poeng: null,
+          ferdig: false, walkover: false,
+        });
+      }
+    }
+    const siste = liste.pop();
+    liste.splice(1, 0, siste);
+  }
+  return kamper;
 }
 
 // ════════════════════════════════════════════════════════
@@ -306,18 +353,19 @@ export async function startPuljespill(turneringId) {
   const puljeMedKamper = (() => {
     const antallPuljer = t.puljer.length;
     const antallBaner  = t.antallBaner ?? t.konfig?.antallBaner ?? 6;
-    // Spesialiserte funksjoner krever nøyaktig 6 lag per pulje
-    const lagPerPulje  = t.puljer[0]?.lagIds?.length ?? 0;
-    if (antallPuljer === 4 && antallBaner === 6 && lagPerPulje === 6) {
+    // Bruk global rotasjon for 4 puljer / 6 baner
+    if (antallPuljer === 4 && antallBaner === 6) {
       return genererKamperMed4Puljer6Baner(t.puljer);
     }
-    if (antallPuljer === 3 && antallBaner === 6 && lagPerPulje === 6) {
+    // Bruk global rotasjon for 3 puljer / 6 baner
+    if (antallPuljer === 3 && antallBaner === 6) {
       return genererKamperMed3Puljer6Baner(t.puljer);
     }
-    if (antallPuljer === 2 && antallBaner === 6 && lagPerPulje === 6) {
+    // Bruk global rotasjon for 2 puljer / 6 baner
+    if (antallPuljer === 2 && antallBaner === 6) {
       return genererKamperMed2Puljer6Baner(t.puljer);
     }
-    // Standard round-robin for alle andre oppsett
+    // Standard round-robin ellers
     return t.puljer.map(p => ({
       ...p,
       kamper: genererRoundRobin(p.lagIds),
@@ -390,23 +438,6 @@ export async function registrerWalkover(turneringId, puljeId, kampId, vinnerId) 
 // ════════════════════════════════════════════════════════
 // SLUTTSPILL
 // ════════════════════════════════════════════════════════
-
-/**
- * Nullstiller sluttspillet og setter turneringen tilbake til GROUP_PLAY.
- * Brukes når seeding er feil og admin vil starte sluttspillet på nytt.
- */
-export async function nullstillSluttspill(turneringId) {
-  const t = await hentTurnering(turneringId);
-  if (t.status !== T_STATUS.PLAYOFFS && t.status !== T_STATUS.PLAYOFF_SEEDING) {
-    throw new Error('Turneringen er ikke i sluttspillfasen.');
-  }
-  await updateDoc(doc(db, TS.TURNERINGER, turneringId), {
-    status:      T_STATUS.GROUP_PLAY,
-    sluttspill:  null,
-    kvalifisert: null,
-  });
-}
-
 export async function startSluttspill(turneringId) {
   const t = await hentTurnering(turneringId);
   if (t.status !== T_STATUS.PLAYOFF_SEEDING && t.status !== T_STATUS.GROUP_PLAY) {
@@ -415,20 +446,16 @@ export async function startSluttspill(turneringId) {
 
   const kval      = kvalifiserTilSluttspill(t);
   const modus     = t.konfig?.seedingModus ?? SEEDING_MODUS.STANDARD;
-  // Kryss-seeding brukes alltid for 2 puljer — garanterer at A1 og B1
-  // får bye og ikke møtes før finalen.
-  const effektivModus = (modus === SEEDING_MODUS.STANDARD && kval.antallPuljer === 2)
-    ? SEEDING_MODUS.KRYSS
-    : modus;
-  const seededeA    = seedALag(kval.A, t.puljer, effektivModus, kval);
-  const erKryss     = effektivModus === SEEDING_MODUS.KRYSS;
+  const seededeA  = seedALag(kval.A, t.puljer, modus, kval);
+  const erKryss   = modus === SEEDING_MODUS.KRYSS;
+  const parOverstyr = erKryss && seededeA.length === 8 ? seededeA : null;
 
-  const aBracket = genererABracket(seededeA, t.konfig);
+  const aBracket = genererABracket(kval.A, t.konfig, parOverstyr);
   const bBracket = kval.B.length >= 2 ? genererBCBracket(kval.B, 'B', 9,  t.konfig) : [];
   const cBracket = kval.C.length >= 2 ? genererBCBracket(kval.C, 'C', 17, t.konfig) : [];
 
   const sluttspill = {
-    A: { lagIds: kval.A, seeding: seededeA, kamper: aBracket },
+    A: { lagIds: kval.A, seeding: erKryss ? parOverstyr : seededeA, kamper: aBracket },
     B: { lagIds: kval.B, kamper: bBracket },
     C: { lagIds: kval.C, kamper: cBracket },
   };
