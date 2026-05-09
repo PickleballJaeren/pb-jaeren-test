@@ -761,29 +761,19 @@ function _kryssSeeding(kval, puljer) {
 function _kryssSeeding2Puljer(meta, puljer) {
   const grp = _grupperPerPulje(meta);
   const [p0, p1] = [grp[0] ?? [], grp[1] ?? []];
-  const justertStats = _justerForUjevnePuljer([p0, p1], puljer);
 
+  // Ren kryss-seeding: A1=seed1, B1=seed2, A2=seed3, B2=seed4 osv.
+  // Ingen sammenligning på tvers — puljerang bestemmer seeding.
+  // Garanterer at A1 og B1 ikke møtes før finalen.
   const maxRang = Math.max(p0.length, p1.length);
   const par = [];
-
   for (let rang = 1; rang <= maxRang; rang++) {
-    const lagA = p0.find(l => l.puljeRang === rang) ?? null;
-    const lagB = p1.find(l => l.puljeRang === rang) ?? null;
-
-    if (lagA && lagB) {
-      const statA = justertStats[lagA.lagId] ?? lagA;
-      const statB = justertStats[lagB.lagId] ?? lagB;
-      const aBedre = _sammenlignPaaTvers(statA, statB) <= 0;
-      par.push(aBedre ? lagA.lagId : lagB.lagId);
-      par.push(aBedre ? lagB.lagId : lagA.lagId);
-    } else if (lagA) {
-      par.push(lagA.lagId);
-    } else if (lagB) {
-      par.push(lagB.lagId);
-    }
+    const fraA = _velg(p0, rang);
+    const fraB = _velg(p1, rang);
+    if (fraA) par.push(fraA);
+    if (fraB) par.push(fraB);
   }
-
-  return _justerSammePulje(par, puljer);
+  return par;
 }
 
 /**
