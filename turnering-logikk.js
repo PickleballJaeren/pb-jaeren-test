@@ -665,11 +665,20 @@ export function genererBCBracket(lagIds, nivaa, startPlass, konfig = null) {
     return kamper;
   }
 
-  // 3–4 lag — semifinale + finale + [bronse]
-  if (n <= 4) {
+  // 3 lag — seed 1 bye til finale, seed 2 vs 3 i semifinale
+  if (n === 3) {
     const s = lagIds;
-    kamper.push(_lagKamp(`${prefix}_SF1`, s[0], s[3] ?? null, `${prefix}_FIN`, medBronse ? `${prefix}_BRO` : null, 'Semifinale'));
-    kamper.push(_lagKamp(`${prefix}_SF2`, s[1], s[2] ?? null, `${prefix}_FIN`, medBronse ? `${prefix}_BRO` : null, 'Semifinale'));
+    kamper.push(_lagKamp(`${prefix}_SF1`, s[1], s[2], `${prefix}_FIN`, null, 'Semifinale'));
+    // Seed 1 har bye og går direkte til finalen
+    kamper.push(_lagKamp(`${prefix}_FIN`, s[0], null, null, null, `${startPlass}. plass`));
+    return kamper;
+  }
+
+  // 4 lag — semifinale + finale + [bronse]
+  if (n === 4) {
+    const s = lagIds;
+    kamper.push(_lagKamp(`${prefix}_SF1`, s[0], s[3], `${prefix}_FIN`, medBronse ? `${prefix}_BRO` : null, 'Semifinale'));
+    kamper.push(_lagKamp(`${prefix}_SF2`, s[1], s[2], `${prefix}_FIN`, medBronse ? `${prefix}_BRO` : null, 'Semifinale'));
     kamper.push(_lagKamp(`${prefix}_FIN`, null, null, null, null, `${startPlass}. plass`));
     if (medBronse) kamper.push(_lagKamp(`${prefix}_BRO`, null, null, null, null, `${bronse}. plass`));
     return kamper;
