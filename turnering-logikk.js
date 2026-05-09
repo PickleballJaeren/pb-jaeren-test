@@ -594,27 +594,12 @@ export function genererABracket(seededeIds, konfig, parOverstyr = null) {
   }
 
   // 8 lag: standard kvartfinale, ingen bye
-  let par;
-  if (parOverstyr && parOverstyr.length === 8) {
-    par = [
-      [parOverstyr[0], parOverstyr[1]],
-      [parOverstyr[2], parOverstyr[3]],
-      [parOverstyr[4], parOverstyr[5]],
-      [parOverstyr[6], parOverstyr[7]],
-    ];
-  } else {
-    par = [
-      [seededeIds[0], seededeIds[7]],
-      [seededeIds[3], seededeIds[4]],
-      [seededeIds[1], seededeIds[6]],
-      [seededeIds[2], seededeIds[5]],
-    ];
-  }
-
-  kamper.push(_lagKamp('A_QF1', par[0][0], par[0][1], 'A_SF1', plasseringPaa ? 'A_P5_SF1' : null, 'Kvartfinale'));
-  kamper.push(_lagKamp('A_QF2', par[1][0], par[1][1], 'A_SF1', plasseringPaa ? 'A_P5_SF1' : null, 'Kvartfinale'));
-  kamper.push(_lagKamp('A_QF3', par[2][0], par[2][1], 'A_SF2', plasseringPaa ? 'A_P5_SF2' : null, 'Kvartfinale'));
-  kamper.push(_lagKamp('A_QF4', par[3][0], par[3][1], 'A_SF2', plasseringPaa ? 'A_P5_SF2' : null, 'Kvartfinale'));
+  // Seed 1 vs 8, seed 2 vs 7, seed 3 vs 6, seed 4 vs 5
+  // SF1: vinnere av QF1 og QF2, SF2: vinnere av QF3 og QF4
+  kamper.push(_lagKamp('A_QF1', seededeIds[0], seededeIds[7], 'A_SF1', plasseringPaa ? 'A_P5_SF1' : null, 'Kvartfinale'));
+  kamper.push(_lagKamp('A_QF2', seededeIds[3], seededeIds[4], 'A_SF1', plasseringPaa ? 'A_P5_SF1' : null, 'Kvartfinale'));
+  kamper.push(_lagKamp('A_QF3', seededeIds[1], seededeIds[6], 'A_SF2', plasseringPaa ? 'A_P5_SF2' : null, 'Kvartfinale'));
+  kamper.push(_lagKamp('A_QF4', seededeIds[2], seededeIds[5], 'A_SF2', plasseringPaa ? 'A_P5_SF2' : null, 'Kvartfinale'));
 
   kamper.push(_lagKamp('A_SF1', null, null, 'A_FIN', 'A_BRO', 'Semifinale'));
   kamper.push(_lagKamp('A_SF2', null, null, 'A_FIN', 'A_BRO', 'Semifinale'));

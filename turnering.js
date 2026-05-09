@@ -422,14 +422,13 @@ export async function startSluttspill(turneringId) {
     : modus;
   const seededeA    = seedALag(kval.A, t.puljer, effektivModus, kval);
   const erKryss     = effektivModus === SEEDING_MODUS.KRYSS;
-  const parOverstyr = erKryss && seededeA.length === 8 ? seededeA : null;
 
-  const aBracket = genererABracket(seededeA, t.konfig, parOverstyr);
+  const aBracket = genererABracket(seededeA, t.konfig);
   const bBracket = kval.B.length >= 2 ? genererBCBracket(kval.B, 'B', 9,  t.konfig) : [];
   const cBracket = kval.C.length >= 2 ? genererBCBracket(kval.C, 'C', 17, t.konfig) : [];
 
   const sluttspill = {
-    A: { lagIds: kval.A, seeding: erKryss ? parOverstyr : seededeA, kamper: aBracket },
+    A: { lagIds: kval.A, seeding: seededeA, kamper: aBracket },
     B: { lagIds: kval.B, kamper: bBracket },
     C: { lagIds: kval.C, kamper: cBracket },
   };
