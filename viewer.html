@@ -619,7 +619,7 @@ function _sorterMedTiebreak(lagListe, kamper) {
   let i = 0;
   while (i < grov.length) {
     let j = i + 1;
-    while (j < grov.length && grov[j].seire === grov[i].seire) j++;\
+    while (j < grov.length && grov[j].seire === grov[i].seire) j++;
     const gruppe = grov.slice(i, j);
     if (gruppe.length === 1) {
       gruppe[0].tiebreakType = null;
