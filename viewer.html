@@ -619,7 +619,7 @@ function _sorterMedTiebreak(lagListe, kamper) {
   let i = 0;
   while (i < grov.length) {
     let j = i + 1;
-    while (j < grov.length && grov[j].seire === grov[i].seire) j++;
+    while (j < grov.length && grov[j].seire === grov[i].seire) j++;\
     const gruppe = grov.slice(i, j);
     if (gruppe.length === 1) {
       gruppe[0].tiebreakType = null;
@@ -630,6 +630,16 @@ function _sorterMedTiebreak(lagListe, kamper) {
     i = j;
   }
   return resultat;
+}
+
+function _sirkelPd(lagId, gruppeIds, kamper) {
+  let pd = 0;
+  for (const k of kamper) {
+    if (!k.ferdig || k.lag1Poeng == null || k.lag2Poeng == null) continue;
+    if (k.lag1Id === lagId && gruppeIds.has(k.lag2Id)) pd += k.lag1Poeng - k.lag2Poeng;
+    if (k.lag2Id === lagId && gruppeIds.has(k.lag1Id)) pd += k.lag2Poeng - k.lag1Poeng;
+  }
+  return pd;
 }
 
 function _sorterGruppeInnbyrdes(gruppe, kamper) {
@@ -648,6 +658,10 @@ function _sorterGruppeInnbyrdes(gruppe, kamper) {
   const sortert = [...gruppe].sort((a, b) => {
     const innS = mini[b.lagId].seire - mini[a.lagId].seire;
     if (!erSirkel && innS !== 0) return innS;
+    // Sirkeloppgjør: bruk PD kun i kampene mellom de involverte lagene
+    const sirkelA = _sirkelPd(a.lagId, ids, kamper);
+    const sirkelB = _sirkelPd(b.lagId, ids, kamper);
+    if (sirkelB !== sirkelA) return sirkelB - sirkelA;
     if (b.pd !== a.pd) return b.pd - a.pd;
     return b.pf - a.pf;
   });

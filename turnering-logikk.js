@@ -417,24 +417,46 @@ export function beregnPuljetabell(pulje, alleLag) {
 }
 
 function _sorterPuljeTabell(lagListe, kamper) {
-  return [...lagListe].sort((a, b) => {
-    if (b.seire !== a.seire) return b.seire - a.seire;
-    const innbyrdes = _sjekkInnbyrdes(a.lagId, b.lagId, kamper);
-    if (innbyrdes !== 0) return innbyrdes;
-    if (b.pd !== a.pd) return b.pd - a.pd;
-    return b.pf - a.pf;
-  });
+  const grov = [...lagListe].sort((a, b) => b.seire - a.seire);
+  const resultat = [];
+  let i = 0;
+  while (i < grov.length) {
+    let j = i + 1;
+    while (j < grov.length && grov[j].seire === grov[i].seire) j++;
+    const gruppe = grov.slice(i, j);
+    if (gruppe.length === 1) {
+      gruppe[0].tiebreakType = null;
+      resultat.push(gruppe[0]);
+    } else {
+      // Sirkeloppgjør: bruk PD kun i kampene mellom de involverte lagene
+      const ids = new Set(gruppe.map(l => l.lagId));
+      const sortert = [...gruppe].sort((a, b) => {
+        const sirkelA = _sirkelPd(a.lagId, ids, kamper);
+        const sirkelB = _sirkelPd(b.lagId, ids, kamper);
+        if (sirkelB !== sirkelA) return sirkelB - sirkelA;
+        if (b.pd !== a.pd) return b.pd - a.pd;
+        return b.pf - a.pf;
+      });
+      sortert.forEach(l => { l.tiebreakType = 'poengdiff'; });
+      resultat.push(...sortert);
+    }
+    i = j;
+  }
+  return resultat;
 }
 
-function _sjekkInnbyrdes(idA, idB, kamper) {
+/**
+ * Beregner poengdifferansen for et lag kun i kampene mot de andre
+ * lagene i samme sirkel-gruppe (like seire).
+ */
+function _sirkelPd(lagId, gruppeIds, kamper) {
+  let pd = 0;
   for (const k of kamper) {
     if (!k.ferdig) continue;
-    if (k.lag1Id === idA && k.lag2Id === idB)
-      return k.lag1Poeng > k.lag2Poeng ? -1 : 1;
-    if (k.lag1Id === idB && k.lag2Id === idA)
-      return k.lag2Poeng > k.lag1Poeng ? -1 : 1;
+    if (k.lag1Id === lagId && gruppeIds.has(k.lag2Id)) pd += k.lag1Poeng - k.lag2Poeng;
+    if (k.lag2Id === lagId && gruppeIds.has(k.lag1Id)) pd += k.lag2Poeng - k.lag1Poeng;
   }
-  return 0;
+  return pd;
 }
 
 function _sammenlignPaaTvers(a, b) {
