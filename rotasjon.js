@@ -445,50 +445,140 @@ export function fordelBanerMix(spillere, antallBaner, poengPerKamp = 15) {
 
 // ════════════════════════════════════════════════════════
 // 6-SPILLER SPESIALFORMAT
+//
+// Oppsett: Bane 1 = dobbel (2v2), Bane 2 = singel (1v1)
+//
+// Rotasjonsregler per runde:
+//   1. Taperlaget fra dobbel → singelbanen
+//   2. Vinnerlaget splittes → pares med singelspillerne på dobbelbanen
+//      (historikk-basert pairing via playedWith)
+//
+// Tvangsregel — maks 2 dobbel-kamper på rad:
+//   - Hvis én av vinnerne har streak = 2, tvinges den til singel
+//   - Av taperne rykker den med færrest dobbel-kamper totalt opp til dobbel
+//   - Streaken nullstilles når en spiller spiller singel
+//   - Neste gang spilleren er tilbake på dobbel starter streak på 0 igjen
+//
+// Merk: begge vinnerne kan aldri ha streak = 2 samtidig, fordi
+// de alltid splittes — maks én av dem kan ha vunnet 2 på rad.
 // ════════════════════════════════════════════════════════
 
 /**
  * Genererer neste runde for 6-spiller Mix & Match format.
  *
- * Regler:
- * - Vinnerne fra dobbel splittes og får nye partnere
- * - Singelspillerne kommer inn som partnere til vinnerne (tilfeldig, unngå gjentak)
- * - Taperne fra dobbel går til singel
- *
- * @param {Object} dobbelResultat - { lag1Spillere, lag2Spillere, vinnerId }
- * @param {Array}  singelSpillere - de to spillerne fra singelbanen
- * @param {Object} playedWith     - historikk over hvem som har spilt med hvem
+ * @param {Object} dobbelResultat  — { lag1Spillere, lag2Spillere, vinnerId }
+ * @param {Array}  singelSpillere  — [s1, s2] fra singelbanen
+ * @param {Object} playedWith      — partner-historikk { [id]: { [id]: antall } }
+ * @param {Object} dobbelStreak    — { [id]: antall dobbel-kamper på rad }
+ * @param {Object} dobbelTotalt    — { [id]: totalt antall dobbel-kamper
+ * @param {number} [poengPerKamp]
  * @returns {{ baneOversikt: Array }}
  */
-export function neste6SpillerRunde(dobbelResultat, singelSpillere, playedWith = {}, poengPerKamp = 15) {
+export function neste6SpillerRunde(
+  dobbelResultat, singelSpillere,
+  playedWith = {}, dobbelStreak = {}, dobbelTotalt = {},
+  poengPerKamp = 15,
+) {
   const { lag1Spillere, lag2Spillere, vinnerId } = dobbelResultat;
   const vinnere = vinnerId === 2 ? lag2Spillere : lag1Spillere;
   const tapere  = vinnerId === 2 ? lag1Spillere : lag2Spillere;
 
-  const [v1, v2] = blandArray([...vinnere]);
-  const [s1, s2] = _parSingelMedVinnere(v1, v2, singelSpillere, playedWith);
+  // ── Tvangsregel: maks 2 dobbel-kamper på rad ──
+  //
+  // Kun vinnerne kan utløse tvangsregelen — taperne sendes alltid til singel
+  // og får streak = 0 etter runden. Men taperne kan ha streak = 2 fra forrige
+  // runde (hvis de vant forrige gang og tapte denne), og skal da IKKE rykke opp.
+  //
+  // Algoritme:
+  //   1. Sjekk om én av vinnerne har streak >= 2 → tvinges til singel
+  //   2. Velg taperOpp: lovlig streak < 2 prioritert, deretter færrest totalt
+  //   3. Garantert mulig: maks én taper kan ha streak = 2, den andre har alltid < 2
 
-  const dobbelSpl = [v1, s1, v2, s2].map(s => ({ id: s.id, navn: s.navn ?? 'Ukjent' }));
-  const singelSpl = tapere.map(s => ({ id: s.id, navn: s.navn ?? 'Ukjent' }));
+  const tvunget = vinnere.find(v => (dobbelStreak[v.id] ?? 0) >= 2) ?? null;
+
+  let dobbelSpillere;
+  let nesteSingel;
+
+  if (tvunget) {
+    const gjenvarendeVinner = vinnere.find(v => v.id !== tvunget.id);
+
+    // Sorter tapere: lovlig streak < 2 først, deretter færrest dobbel-kamper totalt
+    const [taperOpp, taperNed] = [...tapere].sort((a, b) => {
+      const aUlovlig = (dobbelStreak[a.id] ?? 0) >= 2 ? 1 : 0;
+      const bUlovlig = (dobbelStreak[b.id] ?? 0) >= 2 ? 1 : 0;
+      if (aUlovlig !== bUlovlig) return aUlovlig - bUlovlig;
+      return (dobbelTotalt[a.id] ?? 0) - (dobbelTotalt[b.id] ?? 0);
+    });
+
+    const [s1, s2] = _parSingelMedVinnere(
+      gjenvarendeVinner, taperOpp, singelSpillere, playedWith,
+    );
+
+    dobbelSpillere = [gjenvarendeVinner, s1, taperOpp, s2];
+    nesteSingel    = [tvunget, taperNed];
+  } else {
+    const [v1, v2] = vinnere;
+    const [s1, s2] = _parSingelMedVinnere(v1, v2, singelSpillere, playedWith);
+
+    dobbelSpillere = [v1, s1, v2, s2];
+    nesteSingel    = [...tapere];
+  }
 
   return {
     baneOversikt: [
-      { baneNr: 1, erDobbel: true,  erSingel: false, maksPoeng: poengPerKamp, spillere: dobbelSpl },
-      { baneNr: 2, erDobbel: false, erSingel: true,  maksPoeng: poengPerKamp, spillere: singelSpl },
+      {
+        baneNr: 1, erDobbel: true, erSingel: false, maksPoeng: poengPerKamp,
+        spillere: dobbelSpillere.map(s => ({ id: s.id, navn: s.navn ?? 'Ukjent' })),
+      },
+      {
+        baneNr: 2, erDobbel: false, erSingel: true, maksPoeng: poengPerKamp,
+        spillere: nesteSingel.map(s => ({ id: s.id, navn: s.navn ?? 'Ukjent' })),
+      },
     ],
   };
 }
 
 /**
- * Parer to singelspillere med to vinnere — unngå samme par som tidligere.
- * Prøver begge kombinasjoner og velger den med færrest gjentak.
+ * Oppdaterer dobbelStreak og dobbelTotalt etter en 6-spiller runde.
+ * Skal kalles av app.js etter at baneOversikt er lagret til Firestore.
+ *
+ * @param {Array}  dobbelSpillere — spillerobjekter på dobbelbanen denne runden
+ * @param {Array}  singelSpillere — spillerobjekter på singelbanen denne runden
+ * @param {Object} dobbelStreak   — muteres in-place
+ * @param {Object} dobbelTotalt   — muteres in-place
  */
-function _parSingelMedVinnere(v1, v2, singelSpillere, playedWith) {
+export function oppdater6SpillerStreak(dobbelSpillere, singelSpillere, dobbelStreak, dobbelTotalt) {
+  dobbelSpillere.forEach(s => {
+    dobbelStreak[s.id]  = (dobbelStreak[s.id]  ?? 0) + 1;
+    dobbelTotalt[s.id]  = (dobbelTotalt[s.id]  ?? 0) + 1;
+  });
+  singelSpillere.forEach(s => {
+    dobbelStreak[s.id] = 0; // nullstill streak når spiller er på singel
+  });
+}
+
+/**
+ * Henter 6-spiller streak-statistikk fra Firestore-treningsdokument.
+ */
+export function hent6SpillerStreak(treningData) {
+  return {
+    dobbelStreak:  treningData?.mix6DobbelStreak  ?? {},
+    dobbelTotalt:  treningData?.mix6DobbelTotalt  ?? {},
+  };
+}
+
+/**
+ * Parer to dobbel-spillere med to singelspillere.
+ * Evaluerer begge kombinasjoner og velger den med færrest partner-gjentak.
+ */
+function _parSingelMedVinnere(spiller1, spiller2, singelSpillere, playedWith) {
   const [sA, sB] = singelSpillere;
   if (!sA || !sB) return [sA ?? sB, sB ?? sA];
 
-  const kostA = _parKost(v1.id, sA.id, playedWith) + _parKost(v2.id, sB.id, playedWith);
-  const kostB = _parKost(v1.id, sB.id, playedWith) + _parKost(v2.id, sA.id, playedWith);
+  // Kombinasjon A: spiller1+sA, spiller2+sB
+  const kostA = _parKost(spiller1.id, sA.id, playedWith) + _parKost(spiller2.id, sB.id, playedWith);
+  // Kombinasjon B: spiller1+sB, spiller2+sA
+  const kostB = _parKost(spiller1.id, sB.id, playedWith) + _parKost(spiller2.id, sA.id, playedWith);
 
   const velgA = kostA <= kostB + Math.random() * MIX_TIEBREAKER_STØY;
   return velgA ? [sA, sB] : [sB, sA];
