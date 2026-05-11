@@ -11,7 +11,7 @@ import {
   getParter, blandArray,
   fordelBaner, fordelBanerMix,
   lagMixKampoppsett, oppdaterMixStatistikk, hentMixStatistikk,
-  neste6SpillerRunde,
+  neste6SpillerRunde, oppdater6SpillerStreak, hent6SpillerStreak,
 } from './rotasjon.js';
 import { beregnEloForOkt } from './rating.js';
 import {
@@ -177,6 +177,9 @@ export async function startTrening() {
       mixGamesPlayed:     {},
       mixSitOutCount:     {},
       mixLastSitOutRunde: {},
+      // 6-spiller streak — initialiseres alltid, brukes kun for er6SpillerFormat
+      mix6DobbelStreak:   {},
+      mix6DobbelTotalt:   {},
     } : {};
 
     batch.set(treningRef, {
@@ -422,6 +425,10 @@ export async function bekreftNesteRunde() {
       let nyBaneOversikt, nyVenteliste = [];
       const mp = app.poengPerKamp ?? 15;
 
+      // Streak-statistikk for 6-spiller format — løftet ut slik at batch.update får tilgang
+      let oppdatertDobbelStreak = null;
+      let oppdatertDobbelTotalt = null;
+
       // 6-spiller mix: bruk rotasjonslogikk basert på forrige rundes resultat
       if (app.er6SpillerFormat) {
         const gjeldBane1 = gjeldBaneOversikt.find(b => b.baneNr === 1);
@@ -445,12 +452,26 @@ export async function bekreftNesteRunde() {
                        : dobbelKampData.lag2Poeng > dobbelKampData.lag1Poeng ? 2
                        : 1;
 
+        // Hent streak-statistikk fra Firestore og send inn i rotasjonslogikken
+        const { dobbelStreak, dobbelTotalt } = hent6SpillerStreak(treningData);
+
         const { baneOversikt: ny6Baner } = neste6SpillerRunde(
           { lag1Spillere, lag2Spillere, vinnerId },
           gjeldBane2.spillere,
           playedWith,
+          dobbelStreak,
+          dobbelTotalt,
           mp
         );
+
+        // Oppdater streak in-place basert på hvem som spiller dobbel/singel neste runde
+        const nesteDobbelSpl = ny6Baner[0]?.spillere ?? [];
+        const nesteSingelSpl = ny6Baner[1]?.spillere ?? [];
+        oppdater6SpillerStreak(nesteDobbelSpl, nesteSingelSpl, dobbelStreak, dobbelTotalt);
+
+        // Lagre de oppdaterte verdiene slik at batch.update kan bruke dem
+        oppdatertDobbelStreak = dobbelStreak;
+        oppdatertDobbelTotalt = dobbelTotalt;
 
         nyBaneOversikt = ny6Baner;
       } else {
@@ -478,6 +499,11 @@ export async function bekreftNesteRunde() {
         mixGamesPlayed:      gamesPlayed,
         mixSitOutCount:      sitOutCount,
         mixLastSitOutRunde:  lastSitOutRunde,
+        // 6-spiller streak — kun satt for er6SpillerFormat, ellers null (ignoreres)
+        ...(oppdatertDobbelStreak !== null ? {
+          mix6DobbelStreak: oppdatertDobbelStreak,
+          mix6DobbelTotalt: oppdatertDobbelTotalt,
+        } : {}),
       });
       // Mix: én kamp per bane per runde — lagene er allerede trukket i nyBaneOversikt
       skrivMixKamper(batch, app.treningId, nyRunde, nyBaneOversikt);
@@ -524,11 +550,11 @@ export async function bekreftNesteRunde() {
 
       const singelSpillere = gjeldBane2.spillere;
 
-      // Kjør rotasjonslogikken — ingen playedWith i konkurranse
+      // Kjør rotasjonslogikken — ingen playedWith/streak i konkurranse
       const { baneOversikt } = neste6SpillerRunde(
         { lag1Spillere, lag2Spillere, vinnerId },
         singelSpillere,
-        {},
+        {}, {}, {},
         mp
       );
 
