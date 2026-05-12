@@ -294,20 +294,6 @@ window.apneResultatModal = function(puljeEllerNivaa, kampId, lag1Id, lag2Id, erS
     `${_modalFormat.type === 'best_of_3' ? 'Best av 3 · ' : ''}Til ${_modalFormat.points_to_win} · maks ${_modalFormat.max_points}`;
   document.getElementById('modal-resultat-feil').textContent = '';
 
-  // Injiser picker-CSS om ikke allerede lastet (samme som baner.js og profil.js)
-  if (!document.getElementById('poeng-picker-css')) {
-    const s = document.createElement('style');
-    s.id = 'poeng-picker-css';
-    s.textContent = `
-      .poeng-velger-boks{cursor:pointer;background:var(--card2);border:1.5px solid var(--border);border-radius:10px;padding:15px 12px;font-size:39px;font-weight:600;text-align:center;color:var(--white);min-height:78px;display:flex;align-items:center;justify-content:center;transition:border-color .15s;user-select:none}
-      .poeng-velger-boks.aktiv{border-color:var(--blue,#378ADD)}
-      .poeng-picker{margin-top:8px;display:grid;grid-template-columns:repeat(8,1fr);gap:8px}
-      .poeng-picker-tall{cursor:pointer;border-radius:6px;padding:12px 3px;text-align:center;font-size:23px;font-weight:500;border:.5px solid var(--border);background:var(--card2);color:var(--white);transition:background .1s;user-select:none}
-      .poeng-picker-tall.valgt{background:var(--blue,#378ADD);border-color:var(--blue,#378ADD);color:#fff}
-    `;
-    document.head.appendChild(s);
-  }
-
   // Fyll inn poeng-boksene (eksisterende eller blank)
   const startVerdier = { l1: eksisterendeL1, l2: eksisterendeL2 };
   ['l1', 'l2'].forEach(felt => {
