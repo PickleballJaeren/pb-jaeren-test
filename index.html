@@ -622,10 +622,36 @@
     </div>
 
     <!-- Siste resultater -->
-    <div class="seksjon-etikett" style="margin-top:14px">Siste resultater</div>
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-top:14px;margin-bottom:6px">
+      <div class="seksjon-etikett" style="margin-top:0;margin-bottom:0">Siste resultater</div>
+      <button
+        onclick="krevAdmin('Nullstill resultater','Kun administrator kan nullstille siste resultater.',()=>{ document.getElementById('modal-nullstill-resultater').style.display='flex'; })"
+        style="font-size:12px;padding:4px 10px;border-radius:7px;border:1px solid var(--border2);background:transparent;color:var(--muted2);cursor:pointer">
+        Nullstill
+      </button>
+    </div>
     <div class="kort" style="padding:0">
       <div id="utf-siste-resultater">
         <div class="tom-tilstand-liten" style="text-align:center">Ingen resultater ennå</div>
+      </div>
+    </div>
+
+    <!-- Modal: Nullstill siste resultater -->
+    <div class="modal-bakgrunn" id="modal-nullstill-resultater" style="display:none" onclick="if(event.target===this)this.style.display='none'">
+      <div class="modal">
+        <div class="modal-tittel" style="color:var(--red2)">Nullstille siste resultater?</div>
+        <div class="modal-tekst">
+          Dette sletter alle ferdigspilte og avviste utfordringer permanent.<br><br>
+          <span style="color:var(--muted2);font-size:15px">Aktive utfordringer (venter/pågår) berøres ikke.</span><br><br>
+          <span style="color:var(--red2);font-weight:600">Kan ikke angres.</span>
+        </div>
+        <div class="modal-knapper">
+          <button class="knapp knapp-omriss" style="flex:1" onclick="document.getElementById('modal-nullstill-resultater').style.display='none'">Avbryt</button>
+          <button class="knapp knapp-fare" style="flex:1;font-family:'Bebas Neue',cursive;font-size:21px;letter-spacing:1px"
+            onclick="document.getElementById('modal-nullstill-resultater').style.display='none'; nullstillSisteResultater()">
+            NULLSTILL
+          </button>
+        </div>
       </div>
     </div>
 

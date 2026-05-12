@@ -538,6 +538,46 @@ async function _lastSisteResultater(klubbId, spillere) {
 }
 
 // ════════════════════════════════════════════════════════
+// NULLSTILL SISTE RESULTATER (admin)
+// Sletter kun ferdig/avviste utfordringer — aktive (venter/akseptert) berøres ikke.
+// ════════════════════════════════════════════════════════
+export async function nullstillSisteResultater() {
+  const klubbId = _getAktivKlubbId();
+  if (!db || !klubbId) { visMelding('Firebase ikke tilkoblet.', 'feil'); return; }
+  visMelding('Nullstiller resultater… vennligst vent.', 'advarsel');
+
+  try {
+    const BATCH_MAKS = 400;
+    const statuserSomSlettes = [UTF_STATUS.FERDIG, UTF_STATUS.AVVIST];
+    let batch = writeBatch(db);
+    let teller = 0;
+
+    for (const status of statuserSomSlettes) {
+      const snap = await getDocs(
+        query(collection(db, SAM.UTFORDRINGER),
+          where('klubbId', '==', klubbId),
+          where('status',  '==', status)
+        )
+      );
+      for (const d of snap.docs) {
+        batch.delete(d.ref);
+        teller++;
+        if (teller >= BATCH_MAKS) { await batch.commit(); batch = writeBatch(db); teller = 0; }
+      }
+    }
+    if (teller > 0) await batch.commit();
+
+    visMelding('Siste resultater er nullstilt!');
+    // Oppdater visningen umiddelbart
+    const el = document.getElementById('utf-siste-resultater');
+    if (el) el.innerHTML = '<div class="tom-tilstand-liten" style="text-align:center">Ingen resultater ennå</div>';
+  } catch (e) {
+    visFBFeil('Feil ved nullstilling av resultater: ' + (e?.message ?? e));
+  }
+}
+window.nullstillSisteResultater = nullstillSisteResultater;
+
+// ════════════════════════════════════════════════════════
 // UTFORDRER-SEKSJON I GLOBAL-PROFIL
 // Kalles fra global-profil.js etter navigering
 // ════════════════════════════════════════════════════════

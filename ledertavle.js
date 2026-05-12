@@ -442,6 +442,9 @@ window.visNullstillModal = visNullstillModal;
 
 export async function utforNullstill() {
   if (!db) { visMelding('Firebase ikke tilkoblet.', 'feil'); return; }
+
+  const nullstillSingel = document.getElementById('nullstill-inkluder-singel')?.checked ?? false;
+
   document.getElementById('modal-nullstill').style.display = 'none';
   visMelding('Nullstiller… vennligst vent.', 'advarsel');
 
@@ -450,14 +453,18 @@ export async function utforNullstill() {
     let batch = writeBatch(db);
     let teller = 0;
 
+    // Nullstill dobbel-rating — alltid. Nullstill singelRating om valgt.
     const spillerSnap = await getDocs(collection(db, SAM.SPILLERE));
     for (const d of spillerSnap.docs) {
-      batch.update(d.ref, { rating: STARTRATING });
+      const oppdatering = { rating: STARTRATING };
+      if (nullstillSingel) oppdatering.singelRating = null;
+      batch.update(d.ref, oppdatering);
       teller++;
       if (teller >= BATCH_MAKS) { await batch.commit(); batch = writeBatch(db); teller = 0; }
     }
     if (teller > 0) await batch.commit();
 
+    // Slett dobbel-historikk — alltid
     const histSnap = await getDocs(collection(db, SAM.HISTORIKK));
     batch = writeBatch(db); teller = 0;
     for (const d of histSnap.docs) {
@@ -467,6 +474,7 @@ export async function utforNullstill() {
     }
     if (teller > 0) await batch.commit();
 
+    // Slett resultater — alltid
     const resSnap = await getDocs(collection(db, SAM.RESULTATER));
     batch = writeBatch(db); teller = 0;
     for (const d of resSnap.docs) {
@@ -476,9 +484,25 @@ export async function utforNullstill() {
     }
     if (teller > 0) await batch.commit();
 
-    app.spillere = app.spillere.map(s => ({ ...s, rating: STARTRATING }));
+    // Slett singel-historikk om valgt
+    if (nullstillSingel) {
+      const singelSnap = await getDocs(collection(db, SAM.SINGEL_HISTORIKK));
+      batch = writeBatch(db); teller = 0;
+      for (const d of singelSnap.docs) {
+        batch.delete(d.ref);
+        teller++;
+        if (teller >= BATCH_MAKS) { await batch.commit(); batch = writeBatch(db); teller = 0; }
+      }
+      if (teller > 0) await batch.commit();
+    }
+
+    app.spillere = app.spillere.map(s => ({
+      ...s,
+      rating: STARTRATING,
+      ...(nullstillSingel ? { singelRating: null } : {}),
+    }));
     _sesongCache = null;
-    visMelding('Rating og historikk nullstilt!');
+    visMelding(nullstillSingel ? 'Dobbel- og singelrating nullstilt!' : 'Dobbel-rating og historikk nullstilt!');
     oppdaterGlobalLedertavle();
   } catch (e) {
     visFBFeil('Feil ved nullstilling: ' + (e?.message ?? e));
