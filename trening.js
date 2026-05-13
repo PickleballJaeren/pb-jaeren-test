@@ -1052,7 +1052,9 @@ export function nyTrening() {
   app.runde           = 1;
   app.treningId       = null;
   app.aktivBane       = null;
-  app.spillModus      = 'konkurranse'; // alltid tilbake til standard ved ny økt
+  // Nullstill modus via settSpillModus() slik at UI-knappene også oppdateres
+  if (typeof settSpillModus === 'function') settSpillModus('konkurranse');
+  else app.spillModus = 'konkurranse';
   app.scoringsFormat   = 'americano';
   app.ekskluderteIds.clear();
   _setKampStatusCache({});
