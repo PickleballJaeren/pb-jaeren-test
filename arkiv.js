@@ -14,6 +14,7 @@ import { renderKampRad, renderKampRadDetalj, renderMetaChips, renderTomTilstand,
 import {
   hentAlleTurneringer, beregnPuljetabell,
 } from './turnering.js';
+import { nullstillSesongCache, oppdaterGlobalLedertavle } from './ledertavle.js';
 
 // ── Avhengigheter injisert fra app.js via arkivInit() ────────────────────────
 let _naviger   = () => {};
@@ -603,6 +604,8 @@ export async function utforSlettOkt() {
     }
     aktivTreningDetaljId = null;
 
+    nullstillSesongCache();
+    oppdaterGlobalLedertavle();
     visMelding('Økt slettet.');
     _naviger('arkiv');
     lastArkiv();
@@ -682,6 +685,8 @@ export async function utforSlettAlleOkter() {
       app.treningId = null;
     }
 
+    nullstillSesongCache();
+    oppdaterGlobalLedertavle();
     visMelding(`${treningIds.length} økt${treningIds.length === 1 ? '' : 'er'} slettet.`);
     _naviger('arkiv');
     lastArkiv();
