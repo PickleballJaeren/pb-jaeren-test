@@ -1158,15 +1158,21 @@
 <!-- Modal: Nullstill rating og historikk -->
 <div class="modal-bakgrunn" id="modal-nullstill" style="display:none" onclick="if(event.target===this)this.style.display='none'">
   <div class="modal">
-    <div class="modal-tittel" style="color:var(--red2)">Nullstille alt?</div>
+    <div class="modal-tittel" style="color:var(--red2)">Nullstille rating?</div>
     <div class="modal-tekst">
       Dette vil sette alle spilleres rating tilbake til <strong style="color:var(--white)">1000</strong>
       og slette all ratinghistorikk permanent.<br><br>
       <span style="color:var(--red2);font-weight:600">Kan ikke angres.</span>
     </div>
-    <div style="background:rgba(220,38,38,.08);border:1px solid rgba(220,38,38,.2);border-radius:10px;padding:12px 14px;margin-bottom:20px;font-size:16px;color:var(--muted2)">
+    <div style="background:rgba(220,38,38,.08);border:1px solid rgba(220,38,38,.2);border-radius:10px;padding:12px 14px;margin-bottom:16px;font-size:16px;color:var(--muted2)">
       Pågående øktdata (baner, kamper, runder) berøres ikke.
     </div>
+    <label style="display:flex;align-items:center;gap:12px;padding:12px 14px;background:rgba(255,255,255,.04);border:1px solid var(--border);border-radius:10px;margin-bottom:20px;cursor:pointer">
+      <input type="checkbox" id="nullstill-inkluder-singel" style="width:18px;height:18px;accent-color:var(--red2);cursor:pointer;flex-shrink:0">
+      <span style="font-size:15px;color:var(--muted2);line-height:1.4">
+        Nullstill også <strong style="color:var(--white)">singelrating</strong> og singelhistorikk
+      </span>
+    </label>
     <div class="modal-knapper">
       <button class="knapp knapp-omriss" style="flex:1" onclick="document.getElementById('modal-nullstill').style.display='none'">Avbryt</button>
       <button class="knapp knapp-fare" style="flex:1;font-family:'Bebas Neue',cursive;font-size:21px;letter-spacing:1px" onclick="utforNullstill()">NULLSTILL</button>
